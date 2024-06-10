@@ -4,6 +4,7 @@ from udynlink_utils import *
 from jinja2 import FileSystemLoader
 from jinja2.environment import Environment
 import struct
+import zlib 
 
 sectname_code = '.text'
 sectname_data = '.data'
@@ -120,6 +121,12 @@ def process(output, args):
     # Read actual data and verify proper section placement
     set_debug_col()
     debug("%s Reading relevant sections %s" % ('-' * 10, '-' * 10), args)
+
+    st = get_section_in_elf(output, '.strtab')
+    byte_strings = st["data"].split(b'\x00')
+    strings = [byte_string.decode('utf-8') for byte_string in byte_strings]
+    print_list(strings,"strings:", args)
+   
     # Code section
     crt_off = 0
     sect_idx_mapping = {}
@@ -234,7 +241,7 @@ def process(output, args):
             if not s in reloc_name_to_idx:
                 reloc_name_to_idx[s] = delta_off + offset
     print_list([l["name"] for l in rlist], "Final LOT relocation list:", args)
-    print_list([l[0] for l in data_relocs], "Final data relocation list:", args)
+    print_list(["%s %x %x" % (l[0], l[1], l[2]) for l in data_relocs], "Final data relocation list:", args)
     debug("Symbol positions in LOT: " + str(reloc_name_to_idx), args)
 
     # Apply initial LOT relocations in .code
@@ -308,6 +315,8 @@ def process(output, args):
             # R_ARM_ABS32 data relocation
             # *offset += &data - value
             data_offset = (offset - delta_off) * 4
+            # code_data_offset = ds["addr"] - cs["size"]
+            # value += code_data_offset
             value = (1 << 31) | value #flag -> not a symt index
         else:
             offset = reloc_name_to_idx[sym]
@@ -350,7 +359,7 @@ def process(output, args):
             #     31: always 0, except for the last entry marker (which is 0xFFFFFFFF)
             #     30: 1 if in code section, 0 if in data section
             #     29-28: visibility (0 = local, 1 = exported, 2 = external, 3 = module name). Local symbols do NOT have a name (offset is 0).
-            defined_in_code = sect_idx_mapping[syms[s]["section"]] == sectname_code
+            defined_in_code = syms[s]["section"] in sect_idx_mapping and sect_idx_mapping[syms[s]["section"]] == sectname_code
             if sym_map[s] == "local":
                 type_data = 0
             elif sym_map[s] == "exported":
@@ -384,9 +393,11 @@ def process(output, args):
     # And finally append the code
     img = img + code_sect + data_sect
     bin_name = args.bin_name
+    crc32sum = zlib.crc32(img)
     with open(bin_name, "wb") as f:
         f.write(img)
-    print("Image written to '%s'." % bin_name)
+        #f.write(crc32sum.to_bytes(4,"little"))
+    print("Image written to '%s', %d bytes, CRC32: %x." % (bin_name, len(img), crc32sum))
     set_debug_col()
     return bin_name
 

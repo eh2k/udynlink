@@ -15,8 +15,24 @@ SECTIONS
     . = ALIGN(4);
     *(.text)                 /* .text sections (code) */
     *(.text*)                /* .text* sections (code) */
-    . = ALIGN(4);
+    . = ALIGN(8);
   } > all
+
+  /* constructors : ALIGN(4) SUBALIGN(4)
+  {
+      PROVIDE(__ctor_array_start = .);
+      KEEP(*(SORT(.init_array.*)))
+      KEEP(*(.init_array))
+      PROVIDE(__ctor_array_end = .);
+  } > all
+
+  destructors : ALIGN(4) SUBALIGN(4)
+  {
+      PROVIDE(__dtor_array_start = .);
+      KEEP(*(.fini_array))
+      KEEP(*(SORT(.fini_array.*)))
+      PROVIDE(__dtor_array_end = .);
+  } > all */
 
   .data :
   {
@@ -36,17 +52,29 @@ SECTIONS
 		. = ALIGN(4);
   } > all
 
-  .bss :
+  .bss (NOLOAD): ALIGN(4) SUBALIGN(4)
   {
-    . = ALIGN(4);
-    *(.bss)
-    *(.bss*)
-    . = ALIGN(4);
+      PROVIDE(_pbss_start = .);        
+      sbss = .;
+      * (.bss);
+      * (.bss*);
+      ebss = .;
+      PROVIDE(_pbss_end = .);        
   } > all
+/* 
+  .sdram (NOLOAD): ALIGN(4) SUBALIGN(4)
+  {
+    *(.sdram*)
+  } > all */
 
   .got :
   {
     *(.got*)
   }
-}
 
+  /DISCARD/ : {
+    /* *(.sdram*) */
+    *(.boot*) 
+    *(.comment) 
+  }
+}
