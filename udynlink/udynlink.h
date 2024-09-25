@@ -165,6 +165,12 @@ uint32_t udynlink_get_symbol_value(const udynlink_module_t *p_mod, const char *n
 // level - the debug level (see udynlink_debug_level_t above)
 void udynlink_set_debug_level(udynlink_debug_level_t level);
 
+// Calculates the the module blob size 
+uint32_t udynlink_get_module_size(const void *base_addr);
+
+// Gets the ptr to the code (.text) memory
+uint8_t *udynlink_get_code_pointer(const udynlink_module_t *p_mod);
+
 #ifdef __cplusplus
 }
 #endif

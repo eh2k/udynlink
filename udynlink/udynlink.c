@@ -409,4 +409,22 @@ void udynlink_set_debug_level(udynlink_debug_level_t level) {
     debug_level = level;
 }
 
+uint32_t udynlink_get_module_size(const void *base_addr)
+{
+    if (memcmp(base_addr, "UDLM", 4))
+        return 0;
+
+    const udynlink_module_header_t *p_header = (const udynlink_module_header_t *)base_addr;
+
+    uint32_t tot_size = 0;
+    tot_size += sizeof(udynlink_module_header_t) + p_header->num_rels * 2 * sizeof(uint32_t) + p_header->symt_size;
+    tot_size += p_header->code_size;
+    tot_size += p_header->data_size;
+
+    return tot_size;
+}
+
+uint8_t *udynlink_get_code_pointer(const udynlink_module_t *p_mod) {
+    return get_code_pointer(p_mod);
+}
 
