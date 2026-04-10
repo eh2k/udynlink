@@ -179,6 +179,16 @@ def process(output, args):
     print_list([s for s in sym_map if sym_map[s] == "external"], "External :", args)
     print_list([s for s in sym_map if sym_map[s] == "local"],"Locals   :", args)
 
+    # Try to read .got section (needed for GOT_PREL verification)
+    got_sect = None
+    with open(output, "rb") as f:
+        elf = ELFFile(f)
+        for section in elf.iter_sections():
+            if section.name == '.got':
+                got_sect = {"addr": int(section['sh_addr']), "size": int(section['sh_size'])}
+                debug("Read section '.got' at addr 0x%X size %d" % (got_sect["addr"], got_sect["size"]), args)
+                break
+
     # Process relocations
     set_debug_col('yellow')
     debug("%s Examining relocations %s" % ('-' * 10, '-' * 10), args)
@@ -195,7 +205,34 @@ def process(output, args):
         if t == "R_ARM_THM_CALL" or t == "R_ARM_THM_JUMP24":  # PC-relative, safe to ignore
             debug("Ignoring relocation R_ARM_THM_CALL for symbol '%s' of type '%s'" % (s, syms[s]["type"]), args)
             continue
-        elif t == "R_ARM_GOT_BREL":
+        elif t == "R_ARM_GOT_BREL" or t == "R_ARM_GOT_PREL":
+            if t == "R_ARM_GOT_PREL":
+                # GOT_PREL uses PC-relative addressing to reach a GOT entry:
+                #   ldr rX, [literal_pool]   ; rX = GOT(sym) - (add_addr + 4)
+                #   add rX, pc               ; rX = GOT(sym)
+                #   ldr rX, [rX]             ; dereference GOT entry
+                # Convert to r9-based (LOT) access by patching 'add rX, pc' → 'add rX, r9'.
+                # The literal pool value will be overwritten with the LOT slot offset later
+                # (same as GOT_BREL), so the runtime sequence becomes:
+                #   ldr rX, [literal_pool]   ; rX = lot_slot * 4
+                #   add rX, r9               ; rX = &LOT[slot]
+                #   ldr rX, [rX]             ; rX = LOT[slot] = resolved address
+                pool_value = struct.unpack_from("<I", code_sect, offset)[0]
+                found_add = False
+                for scan in range(offset - 2, max(offset - 1024, 0), -2):
+                    b0, b1 = code_sect[scan], code_sect[scan + 1]
+                    # Thumb 'add Rd, pc' encoding: byte1=0x44, Rm field (bits 6-3 of byte0) = 0xF (pc)
+                    if b1 == 0x44 and (b0 >> 3) & 0xF == 0xF:
+                        # Verify: add_addr + 4 + pool_value should land on a 4-byte-aligned .got entry
+                        computed_got = scan + 4 + pool_value
+                        if got_sect and computed_got % 4 == 0 and got_sect["addr"] <= computed_got < got_sect["addr"] + got_sect["size"]:
+                            rd = (b0 & 0x07) | (0x08 if b0 & 0x80 else 0)
+                            # Patch Rm field from pc(15) to r9(9)
+                            code_sect[scan] = (b0 & 0x87) | (9 << 3)
+                            debug("Patched 'add r%d, pc' -> 'add r%d, r9' at 0x%X for GOT_PREL '%s'" % (rd, rd, scan, s), args)
+                            found_add = True
+                            break
+                check(found_add, "Could not find 'add rX, pc' for GOT_PREL relocation of '%s' at offset 0x%X" % (s, offset))
             if sym_map[s] == "local" or sym_map[s] == "exported":
                 debug("Found local relocation for symbol '%s' (offset is %X, value is %x)" % (s, offset, value), args)
                 local_relocs.append((s, offset, value))
@@ -228,6 +265,11 @@ def process(output, args):
                 ignored[s] = True
             continue
         if t == "R_ARM_ABS32" or t == "R_ARM_TARGET1":
+            # Only process relocations within the .data section range;
+            # debug sections (e.g. .debug_frame) can produce R_ARM_ABS32
+            # relocations at low offsets that overlap with .text addresses.
+            if offset < len(code_sect):
+                continue
             check(offset % 4 == 0, "%s offset mod 4 '%x' is not a multiple of 4" % (s, offset))
             check((offset - len(code_sect)) % 4 == 0, "%s code_sect mod 4 '%x-%x' is not a multiple of 4" % (s, offset, len(code_sect)))
             offset = int((offset - len(code_sect)) / 4)
