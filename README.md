@@ -2,6 +2,8 @@
 
 # Changes
 ```
+[13] 2026-09-23 eh2k:
+    * uniquify_local_symbols (multiple c files equal named static symbols)
 [12] 2024-12-01 eh2k:
     * --gc-sections + optimization "readonly data & relocs"
 [11] 2024-09-25 eh2k:

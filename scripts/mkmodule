@@ -34,6 +34,27 @@ def make_symbols_local(obj, symlist, args):
     cmdline = cmdline + " %s %s" % (obj, obj)
     execute(cmdline, args)
 
+# process() keys symbols by name, so a local that exists in several objects (.LANCHOR0, static
+# helpers like poles()) would collapse into one LOT entry pointing at just one of them.
+def uniquify_local_symbols(objects, args):
+    for idx, obj in enumerate(objects):
+        names = set()
+        with open(obj, "rb") as f:
+            symtab = ELFFile(f).get_section_by_name(".symtab")
+            for sym in (symtab.iter_symbols() if symtab else []):
+                if sym["st_info"]["bind"] != "STB_LOCAL" or sym["st_info"]["type"] in ("STT_FILE", "STT_SECTION"):
+                    continue
+                if sym.name and not sym.name.startswith("$"):
+                    names.add(sym.name)
+        if not names:
+            continue
+        map_file = obj + ".syms"
+        with open(map_file, "wt") as f:
+            for n in sorted(names):
+                f.write("%s %s.o%d\n" % (n, n, idx))
+        execute("arm-none-eabi-objcopy --redefine-syms=%s %s" % (map_file, obj), args)
+        os.remove(map_file)
+
 def assemble(src_name, args):
     path, fname, ext = split_fname(src_name)
     objname = os.path.join(path, fname + ".o")
@@ -112,6 +133,7 @@ def link(objects, output, args):
         path, fname, ext = split_fname(args.source[0])
         output = os.path.join(path, fname + ".elf")
     # Prepare link
+    uniquify_local_symbols(objects, args)
     link_data = {"input": " ".join(objects), "output": output, "ld": linker_script}
     debug("Linking (%s -> %s)" % (" + ".join(objects), output), args)
     execute("arm-none-eabi-gcc " + link_cmd.format(**link_data), args)
