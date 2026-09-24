@@ -572,6 +572,12 @@ register char* stack_ptr asm ("sp");
 
 /* following is copied from libc/stdio/local.h to check std streams */
 //extern void _EXFUN(__sinit,(struct _reent*));
+#include <_newlib_version.h>
+#if __NEWLIB__ >= 4 || (__NEWLIB__ == 3 && __NEWLIB_MINOR__ >= 3)
+/* newer newlib: __sdidinit was removed, stdio init is handled internally */
+#define CHECK_INIT(ptr) do { (void)(ptr); } while (0)
+#else
+extern void __sinit(struct _reent*);
 #define CHECK_INIT(ptr) \
   do                                            \
     {                                           \
@@ -579,6 +585,7 @@ register char* stack_ptr asm ("sp");
         __sinit (ptr);                          \
     }                                           \
   while (0)
+#endif
 
 static int monitor_stdin;
 static int monitor_stdout;
