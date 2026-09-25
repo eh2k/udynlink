@@ -2,6 +2,10 @@
 
 # Changes
 ```
+[14] 2026-09-25 eh2k:
+    * mkmodule: bss_size includes the alignment gap between .data and .bss
+      (.bss aligned to 8 after a .data ending on 4 -> the loader allocated 4 bytes too little RAM,
+       the last .bss variable overwrote the next heap chunk -> crashes in free())
 [13] 2026-09-23 eh2k:
     * uniquify_local_symbols (multiple c files equal named static symbols)
 [12] 2024-12-01 eh2k:
@@ -205,6 +209,9 @@ The dynamic linker is the code running on the MCU that's responsible with loadin
 Note that a module generally needs more RAM than the memory required by the load mode above. In particular, "execute in place" (`UDYNLINK_LOAD_MODE_XIP`) isn't the same as "no RAM required", it just means that the actual code runs directly from the module's image, without being copied anywhere. Even in XIP mode, the module likely needs RAM for its .data and .bss sections; even if it those sections are empty, the module likely needs RAM for its relocations. Modules that don't require any RAM at all to work can exist, but are quite rare.
 
 Speaking of relocations, the dynamic linker uses an array called `LOT` (Linker Offset Table) that keeps a list of the relocations that need to be applied to the module's image in RAM (this is similar in concept with the usual GOT mechanism, but different in implementation, hence the different name). The LOT occupies the first region of the module's image in RAM.  The LOT is the table to which `r9` must point to when executing code in this module.
+
+> **Note**
+> The module RAM is `LOT + data_size + bss_size`, with .bss placed directly after .data. The linker may align .bss past the end of .data (e.g. to 8 bytes), so `mkmodule` writes `bss_size` as `bss.addr + bss.size - (text.size + data.size)`, i.e. including that gap. Otherwise the last bytes of .bss lie outside the allocation.
 
 Besides applying relocations, the linker needs to resolve the module's foreign symbols. These are the symbols that are needed for the module to run, but were not found during linking. A simple example:
 

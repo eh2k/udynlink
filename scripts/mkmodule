@@ -169,6 +169,8 @@ def process(output, args):
     check(bs["size"] % 4 == 0, "Length of section '%s' is not a multiple of 4" % sectname_bss)
     check(bs["addr"] >= crt_off, "Section '%s' doesn't begin after section '%s'" % (sectname_bss, sectname_data))
     bss_sect = bs["data"]
+    # .bss may be aligned past the end of .data; the loader places it right after .data, so the gap has to be allocated too.
+    bss_size = bs["addr"] + bs["size"] - crt_off
     sect_idx_mapping[bs["index"]] = sectname_bss
     # Add a special key for undefined symbols
     sect_idx_mapping["SHN_UNDEF"] = None
@@ -359,7 +361,7 @@ def process(output, args):
     img += struct.pack("<I", symt_len)  # Size of symbol table in bytes (4b)
     img += struct.pack("<I", len(code_sect))  # Size of code section (4b)
     img += struct.pack("<I", len(data_sect))  # Size of data section (4b)
-    img += struct.pack("<I", len(bss_sect))  # Size of bss section (4b)
+    img += struct.pack("<I", bss_size)  # Size of bss section incl. alignment gap after .data (4b)
     # Write relocations: (lot off, symy off) pairs
     img += realocs
     
