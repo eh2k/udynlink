@@ -18,7 +18,7 @@ SECTIONS
     *(.text*)                /* .text* sections (code) */
     *(.rodata)               /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)              /* .rodata* sections (constants, strings, etc.) */
-    . = ALIGN(4);
+    . = ALIGN(8);
   } > all
 
   .data :
