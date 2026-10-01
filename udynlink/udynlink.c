@@ -320,7 +320,7 @@ void udynlink_cpp_init(udynlink_module_t *p_mod){
     udynlink_sym_t __init_array= {};
     if(udynlink_lookup_symbol(p_mod, "__init_array", &__init_array) != NULL)
     {
-        uint32_t* mod_base = 0x20000000; //see asm_template.tmpl
+        uint32_t* mod_base = (uint32_t*)0x20000000; //see asm_template.tmpl
         *mod_base = p_mod->ram_base;
         typedef void (*void_func)(void);
         void_func f = (void_func)__init_array.val;
