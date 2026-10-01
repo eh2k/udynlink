@@ -13,9 +13,9 @@ linker_script = os.path.join(os.path.dirname(__file__), "code_before_data.ld")
 ################################################################################
 # Compilation
 ################################################################################
-compile_cmd = "-fPIE -msingle-pic-base -mcpu=cortex-m4 -mthumb -fomit-frame-pointer {extra} {input} -c -o {output}"
-asm_cmd = "-x assembler-with-cpp -mcpu=cortex-m4 -mthumb {input} -c -o {output}"
-link_cmd = "-mcpu=cortex-m4 -mthumb -T {ld} -nostartfiles -nodefaultlibs -nostdlib -Wl,--unresolved-symbols=ignore-in-object-files -Wl,--emit-relocs {input} -Wl,-e,0 -o {output}"
+compile_cmd = "-fPIE -msingle-pic-base -mcpu={mcpu} -mthumb -fomit-frame-pointer {extra} {input} -c -o {output}"
+asm_cmd = "-x assembler-with-cpp -mcpu={mcpu} -mthumb {input} -c -o {output}"
+link_cmd = "-mcpu={mcpu} -mthumb -T {ld} -nostartfiles -nodefaultlibs -nostdlib -Wl,--unresolved-symbols=ignore-in-object-files -Wl,--emit-relocs {input} -Wl,-e,0 -o {output}"
 
 compile_cmd = "-ffunction-sections -fdata-sections " + compile_cmd
 link_cmd = "-Wl,--gc-sections " + link_cmd
@@ -458,6 +458,7 @@ parser.add_argument("--name", dest="name", default=None, help="Module name (defa
 parser.add_argument("--build_flags", dest="build_flags", default=None)
 parser.add_argument("--public-symbols", dest="public_symbols", default=None)
 parser.add_argument("--bin-name", dest="bin_name", default=None)
+parser.add_argument("--mcpu", dest="mcpu", default="cortex-m4", help="Target CPU for -mcpu (default: cortex-m4)")
 
 args, rest = parser.parse_known_args()
 if len(rest) == 0:
@@ -478,6 +479,11 @@ if args.name is None:
 if args.bin_name is None:
     path, _ = os.path.splitext(sources[0])
     args.bin_name = path + ".bin"
+
+# {mcpu} is filled in here: the commands are format()ed later with other keys
+compile_cmd = compile_cmd.replace("{mcpu}", args.mcpu)
+asm_cmd = asm_cmd.replace("{mcpu}", args.mcpu)
+link_cmd = link_cmd.replace("{mcpu}", args.mcpu)
 
 if args.build_flags is not None:
     compile_cmd = args.build_flags + " " + compile_cmd
