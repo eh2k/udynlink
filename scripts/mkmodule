@@ -188,9 +188,14 @@ def process(output, args):
             continue
         if d["bind"] == "STB_GLOBAL":
             defined = d["section"] != "SHN_UNDEF"
-            if defined:
+            if defined and (len(public_symbols) == 0 or s in public_symbols):
                 sym_map[s] = "exported"
                 debug("Added symbol '%s' (%s) to list of exported symbols" % (s, syms[s]["type"]), args)
+            elif defined:
+                # Only public symbols are looked up by name. Any other global goes into the image as a local,
+                # without its name: the loader relocates local and exported symbols alike.
+                sym_map[s] = "local"
+                debug("Added global symbol '%s' (%s) to list of local symbols" % (s, syms[s]["type"]), args)
             else:
                 sym_map[s] = "external"
                 debug("Added symbol '%s' (%s) to list of external symbols" % (s, syms[s]["type"]), args)
