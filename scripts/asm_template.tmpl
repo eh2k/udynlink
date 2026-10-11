@@ -4,10 +4,14 @@
     .text
     .thumb
 
+/* Each prologue loads r9 with a PC-relative literal (ldr r1, .L1...). The assembler computes that offset from
+   Align(PC, 4) within the section, so the literal and the section must be 4-byte aligned: anything placed before
+   the prologues in .text_nogc (e.g. a constant of the module) must not shift them to 2 mod 4. ldr.w: the encoding
+   the assembler chose while it did not know the alignment, so the images stay the same. */
 {% for s, actname in sym_names.items() %}
-    .thumb_func
-    .align 1
     .section .text_nogc, "x"
+    .balign 4
+    .thumb_func
     .globl {{s}}
     .type {{s}}, %function
     .extern {{actname}}
@@ -15,12 +19,13 @@
 {{s}}:
     push    {r9, lr}
     push    {r1}
-    ldr     r1, .L1{{s}}
+    ldr.w   r1, .L1{{s}}
     ldr     r9, [r1]
     pop     {r1}
     bl      {{actname}}
     pop     {r9, pc}
 
+    .balign 4
 .L1{{s}}:
     .word   0x20000000
     .size   {{s}}, . - {{s}}
